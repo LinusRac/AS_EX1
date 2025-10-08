@@ -138,7 +138,7 @@ def ex1(method = "tfidf"):
     elapsed_time_comparison: datetime = end_t - end_creation_model_t
     print()
     print(f'Execution time {method} model:', elapsed_time_model_creation, 'seconds')
-    print('Execution time comparison:', elapsed_time_comparison, 'seconds')
+    print(f'Execution time {method} comparison:', elapsed_time_comparison, 'seconds')
 
 
 ex1("tfidf")
