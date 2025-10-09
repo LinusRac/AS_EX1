@@ -13,7 +13,6 @@ import re
 from nltk.corpus import stopwords
 from nltk import PorterStemmer
 
-init_t: datetime = datetime.datetime.now()
 
 
 def get_all_articles_in_section(sec, documents, sections):
@@ -38,10 +37,10 @@ def get_documents_and_topics(csv_file):
 
     documents = [r[3] for r in rows]
     sections = [r[2] for r in rows]
-    topics = [r[1].split(",") for r in rows]
+    tags = [r[1].split(",") for r in rows]
     headers = [r[0] for r in rows]
 
-    return documents, topics, sections, headers
+    return documents, tags, sections, headers
 
 def get_bow(documents):
     porter = PorterStemmer()
@@ -70,14 +69,17 @@ def get_bow(documents):
 
 
 def ex1(method = "tfidf"):
-    docs, topics, sections, headers = get_documents_and_topics("news2.csv")
+    init_t: datetime = datetime.datetime.now()
+
+    print(f"starting {method}...")
+    docs, tags, sections, headers = get_documents_and_topics("news2.csv")
     food_and_drink_corpus = get_all_articles_in_section("Food & Drink", docs, sections)
 
     corpus_bow,dictionary = get_bow(docs)
 
     if method == "tfidf":
-        tfidf = models.TfidfModel(corpus_bow)
-        tfidf_vectors = tfidf[corpus_bow]
+        model = models.TfidfModel(corpus_bow)
+        vectors = model[corpus_bow]
 
         id2token = dict(dictionary.items())
 
@@ -87,15 +89,15 @@ def ex1(method = "tfidf"):
 
 
 
-        matrix_tfidf = similarities.MatrixSimilarity(tfidf_vectors)
+        matrix = similarities.MatrixSimilarity(vectors)
     
     elif method == "lda":
-        lda = models.LdaModel(corpus_bow, num_topics=30, id2word=dictionary, random_state=30, passes=2)
-        lda_vectors = []
+        model = models.LdaModel(corpus_bow, num_topics=30, id2word=dictionary, random_state=30, passes=2)
+        vectors = []
         for v in corpus_bow:
-            lda_vectors.append(lda[v])
+            vectors.append(model[v])
 
-        matrix_lda = similarities.MatrixSimilarity(lda_vectors)
+        matrix = similarities.MatrixSimilarity(vectors)
 
     end_creation_model_t: datetime = datetime.datetime.now()
 
@@ -108,10 +110,10 @@ def ex1(method = "tfidf"):
         doc_s = [porter.stem(word) for word in doc.lower().split() if word not in stoplist]
 
         vec_bow = dictionary.doc2bow(doc_s)
-        vec_tfidf = tfidf[vec_bow]
+        vec_tfidf = model[vec_bow]
 
         # calculate similarities between doc and each doc of texts using tfidf vectors and cosine
-        sims = matrix_tfidf[vec_tfidf]
+        sims = matrix[vec_tfidf]
 
         # sort similarities in descending order
         sims = sorted(enumerate(sims), key=lambda item: -item[1])
@@ -132,7 +134,7 @@ def ex1(method = "tfidf"):
                 total_goods += 1
 
     ratio_quality = total_goods/(len(food_and_drink_corpus)*10)
-    print(ratio_quality)
+    print(f"{method}: ratio quality: {ratio_quality}")
     end_t: datetime = datetime.datetime.now()
     elapsed_time_model_creation: datetime = end_creation_model_t - init_t
     elapsed_time_comparison: datetime = end_t - end_creation_model_t
