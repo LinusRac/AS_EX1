@@ -12,6 +12,8 @@ As tagging is done manually, the information contained in tags is much more reli
 
 In our code, we determine which percentage of the tags for article 1 are also tags of article and 2 and vice versa. From these two numbers we calculate the geometric mean in order to get a distance measure between 1 (same tags) and 0 (completely disjunct sets of tags).
 
+An alternative would be to use a measure for the distance of two sets, like the Jaccard Similarity.
+
 ## Instructions
 
 This assignment can be completed in teams of two or three students.

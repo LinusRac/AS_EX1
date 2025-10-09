@@ -185,9 +185,9 @@ print("\033[31mEX 03\033[0m")
 ex123("tfidf", "Sports")
 ex123("lda", "Sports")
 
-print("\033[31mEX 04 (Head of distance Matrix\033[0m")
+print("\033[31mEX 04 (Head of distance Matrix)\033[0m")
 
 # pretty print for numpy (stolen from chatgpt...)
-np.set_printoptions(precision=2, suppress=True, linewidth=100)
+np.set_printoptions(precision=2, suppress=True, linewidth=200)
 
-pprint(ex4()[:10, :10])
+pprint(ex4()[:20, :20])
