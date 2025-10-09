@@ -12,7 +12,8 @@ import re
 
 from nltk.corpus import stopwords
 from nltk import PorterStemmer
-
+from math import sqrt
+import numpy as np
 
 
 def get_all_articles_in_section(sec, documents, sections):
@@ -66,14 +67,12 @@ def get_bow(documents):
 
     return model_bow, dictionary
 
-
-
-def ex1(method = "tfidf"):
+def ex123(method = "tfidf", topic="Food & Drink"):
     init_t: datetime = datetime.datetime.now()
 
-    print(f"starting {method}...")
+    print(f"starting {method} (topic: {topic})...")
     docs, tags, sections, headers = get_documents_and_topics("news2.csv")
-    food_and_drink_corpus = get_all_articles_in_section("Food & Drink", docs, sections)
+    food_and_drink_corpus = get_all_articles_in_section(topic, docs, sections)
 
     corpus_bow,dictionary = get_bow(docs)
 
@@ -130,18 +129,65 @@ def ex1(method = "tfidf"):
 
         for pos, score in best_matches:
             section = sections[pos]
-            if "Food & Drink" in section:
+            if topic in section:
                 total_goods += 1
 
     ratio_quality = total_goods/(len(food_and_drink_corpus)*10)
-    print(f"{method}: ratio quality: {ratio_quality}")
+    print(f"{method} for category {topic}: ratio quality: {ratio_quality}")
     end_t: datetime = datetime.datetime.now()
     elapsed_time_model_creation: datetime = end_creation_model_t - init_t
     elapsed_time_comparison: datetime = end_t - end_creation_model_t
-    print()
     print(f'Execution time {method} model:', elapsed_time_model_creation, 'seconds')
     print(f'Execution time {method} comparison:', elapsed_time_comparison, 'seconds')
+    print()
 
+def ex4(verbose = False):
+    # create a similarity matrix based on tags:
 
-ex1("tfidf")
-ex1("lda")
+    def distance(tags_a, tags_b):
+        a_in_b = 0
+        for i, tag in enumerate(tags_a):
+            if tag in tags_b:
+                a_in_b += 1
+        
+        b_in_a = 0
+        for i, tag in enumerate(tags_b):
+            if tag in tags_a:
+                b_in_a += 1
+
+        # geometric mean as distance measure
+        d = sqrt(a_in_b/len(tags_a)*b_in_a/len(tags_b))
+        if not d == 0 and verbose:
+            print(d)
+            pprint(tags_a)
+            pprint(tags_b)
+            print()
+        return d
+    
+    docs, tags, sections, headers = get_documents_and_topics("news2.csv")
+
+    matrix = np.ones((len(tags), len(tags)))
+    for i, tags_a in enumerate(tags):
+        for j, tags_b in enumerate(tags):
+            matrix[i, j] = distance(tags_a, tags_b)
+    return matrix
+
+print("\033[31mEX 01\033[0m")
+
+ex123("tfidf", "Food & Drink")
+
+print("\033[31mEX 02\033[0m")
+
+ex123("lda", "Food & Drink")
+
+print("\033[31mEX 03\033[0m")
+
+ex123("tfidf", "Sports")
+ex123("lda", "Sports")
+
+print("\033[31mEX 04 (Head of distance Matrix\033[0m")
+
+# pretty print for numpy (stolen from chatgpt...)
+np.set_printoptions(precision=2, suppress=True, linewidth=100)
+
+pprint(ex4()[:10, :10])

@@ -2,8 +2,15 @@
 
 # Assignment 1: Content-Based Recommender Systems
 
-## Random notes
-- we need to use the description, and then we 
+## Explanation ex 3
+
+Sports is a topic that is much more broad than food an drinks. For instance, an article about football will use completely different vocabulary than an article about marathon running or chess. However, every food and drink article will use words like "food", "cooking" or "taste". Maybe comparing "food and drink" to "volleyball" would be more representative.
+
+## Explanation ex 4
+
+As tagging is done manually, the information contained in tags is much more reliable, concise and of lower redundancy.
+
+In our code, we determine which percentage of the tags for article 1 are also tags of article and 2 and vice versa. From these two numbers we calculate the geometric mean in order to get a distance measure between 1 (same tags) and 0 (completely disjunct sets of tags).
 
 ## Instructions
 
