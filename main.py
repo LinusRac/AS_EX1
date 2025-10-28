@@ -143,39 +143,206 @@ def ex123(method = "tfidf", topic="Food & Drink"):
     print(f'Execution time {method} comparison:', elapsed_time_comparison, 'seconds')
     print()
 
-def ex4(verbose = False):
-    # create a similarity matrix based on tags:
+# -----------------------------
+# helper functions for exercise 4
+# -----------------------------
 
-    def distance(tags_a, tags_b):
-        a_in_b = 0
-        for i, tag in enumerate(tags_a):
-            if tag in tags_b:
-                a_in_b += 1
-        
-        b_in_a = 0
-        for i, tag in enumerate(tags_b):
-            if tag in tags_a:
-                b_in_a += 1
+def _normalize_tag(t: str, porter: PorterStemmer) -> str:
+    t = (t or '').strip().lower()
+    # keep alphanumerics, whitespace and hyphens/underscores; drop other punctuation
+    t = re.sub(r"[^\w\s-]", "", t)
+    return porter.stem(t) if t else t
 
-        # geometric mean as distance measure
-        d = sqrt(a_in_b/len(tags_a)*b_in_a/len(tags_b))
-        if not d == 0 and verbose:
-            print(d)
-            pprint(tags_a)
-            pprint(tags_b)
-            print()
-        return d
-    
-    docs, tags, sections, headers = get_documents_and_topics("news2.csv")
 
-    matrix = np.ones((len(tags), len(tags)))
-    for i, tags_a in enumerate(tags):
-        for j, tags_b in enumerate(tags):
-            matrix[i, j] = distance(tags_a, tags_b)
+def _prepare_tags(tags, normalize: bool):
+    """Return a list of per-document tag lists, optionally normalized and deduplicated."""
+    if not normalize:
+        # deduplicate while keeping order
+        return [[t for i, t in enumerate(taglist) if t and t.strip() and t not in taglist[:i]] for taglist in tags]
+    porter = PorterStemmer()
+    normed = []
+    for taglist in tags:
+        cleaned = []
+        seen = set()
+        for t in taglist:
+            nt = _normalize_tag(t, porter)
+            if nt and nt not in seen:
+                seen.add(nt)
+                cleaned.append(nt)
+        normed.append(cleaned)
+    return normed
+
+# similarity measures functions
+
+def _sim_geometric(a, b):
+    # geometric mean of coverage proportions
+    if not a or not b:
+        return 0.0
+    a_in_b = sum(1 for t in a if t in b)
+    b_in_a = sum(1 for t in b if t in a)
+    return sqrt((a_in_b / len(a)) * (b_in_a / len(b))) if a_in_b and b_in_a else 0.0
+
+
+def _sim_jaccard(a, b):
+    if not a and not b:
+        return 0.0
+    sa, sb = set(a), set(b)
+    union = len(sa | sb)
+    inter = len(sa & sb)
+    return (inter / union) if union else 0.0
+
+
+def _sim_overlap(a, b):
+    # overlap coefficient
+    if not a or not b:
+        return 0.0
+    sa, sb = set(a), set(b)
+    inter = len(sa & sb)
+    denom = min(len(sa), len(sb))
+    return (inter / denom) if denom else 0.0
+
+
+def _build_pairwise_matrix(tag_lists, sim_func):
+    n = len(tag_lists)
+    m = np.ones((n, n))
+    for i, a in enumerate(tag_lists):
+        for j, b in enumerate(tag_lists):
+            if j < i:
+                # symmetry
+                m[i, j] = m[j, i]
+            else:
+                m[i, j] = sim_func(a, b)
+    return m
+
+
+def _build_tfidf_matrix(tag_lists):
+    """Compute cosine similarity matrix from TF-IDF of tags using gensim."""
+    # gensim expects list of tokens per document
+    dictionary = corpora.Dictionary(tag_lists)
+    corpus_bow = [dictionary.doc2bow(tags) for tags in tag_lists]
+    model = models.TfidfModel(corpus_bow)
+    vectors = list(model[corpus_bow])
+    index = similarities.MatrixSimilarity(vectors, num_features=len(dictionary))
+
+    n = len(tag_lists)
+    mat = np.zeros((n, n))
+    for i, vec in enumerate(vectors):
+        sims = index[vec]
+        mat[i, :] = sims
+    return mat
+
+
+def ex4_distance_matrix(measure: str = 'geometric', normalize: bool = False, verbose: bool = False):
+    """Create a similarity matrix based on tags with configurable measure and normalization.
+
+    measure: 'geometric' | 'jaccard' | 'overlap' | 'tfidf'
+    normalize: apply lowercasing + punctuation cleanup + stemming to tags
+    """
+    _, tags, _, _ = get_documents_and_topics("news2.csv")
+    tag_lists = _prepare_tags(tags, normalize=normalize)
+
+    if measure == 'geometric':
+        matrix = _build_pairwise_matrix(tag_lists, _sim_geometric)
+    elif measure == 'jaccard':
+        matrix = _build_pairwise_matrix(tag_lists, _sim_jaccard)
+    elif measure == 'overlap':
+        matrix = _build_pairwise_matrix(tag_lists, _sim_overlap)
+    elif measure == 'tfidf':
+        matrix = _build_tfidf_matrix(tag_lists)
+    else:
+        raise ValueError(f"Unknown measure: {measure}")
+
+    if verbose:
+        print(f"Built similarity matrix with measure={measure}, normalize={normalize}")
     return matrix
 
+
+def _same_section(sa: str, sb: str) -> bool:
+    if not sa or not sb:
+        return False
+    return (sa == sb) or (sa in sb) or (sb in sa)
+
+
+def evaluate_ex4_approaches(csv_file: str = "news2.csv", top_k: int = 10, section_filter: str | None = None):
+    """Evaluate different tag-based similarities and normalization settings.
+
+    If section_filter is None: evaluate across the whole corpus (default behavior).
+    If section_filter is provided (e.g., "Food & Drink"), only documents from that
+    section are used as queries, while the candidate set remains the whole corpus.
+    We report the overall precision@K under the chosen setting.
+    """
+    docs, tags, sections, headers = get_documents_and_topics(csv_file)
+    settings = [
+        ('geometric', False),
+        ('geometric', True),
+        ('jaccard', False),
+        ('jaccard', True),
+        ('overlap', False),
+        ('overlap', True),
+        ('tfidf', False),
+        ('tfidf', True),
+    ]
+
+    results = []
+    for measure, normalize in settings:
+        mat = ex4_distance_matrix(measure=measure, normalize=normalize, verbose=False)
+        total_goods = 0
+
+        if section_filter:
+            # use only docs from the chosen section as queries
+            query_indices = [i for i, sec in enumerate(sections) if _same_section(section_filter, sec)]
+            n_queries = len(query_indices)
+            for i in query_indices:
+                sims = list(enumerate(mat[i, :]))
+                sims = sorted(sims, key=lambda kv: -kv[1])
+                # drop self
+                sims = [(j, s) for j, s in sims if j != i]
+                top = sims[:top_k]
+                sec_i = sections[i]
+                total_goods += sum(1 for j, _ in top if _same_section(sec_i, sections[j]))
+            denom = (n_queries * top_k) if n_queries and top_k else 0
+            ratio_quality = (total_goods / denom) if denom else 0.0
+        else:
+            # evaluate over the whole corpus (all docs as queries)
+            n = len(docs)
+            for i in range(n):
+                sims = list(enumerate(mat[i, :]))
+                sims = sorted(sims, key=lambda kv: -kv[1])
+                # drop self
+                sims = [(j, s) for j, s in sims if j != i]
+                top = sims[:top_k]
+                sec_i = sections[i]
+                total_goods += sum(1 for j, _ in top if _same_section(sec_i, sections[j]))
+            ratio_quality = total_goods / (n * top_k) if n and top_k else 0.0
+        results.append({
+            'measure': measure,
+            'normalize': normalize,
+            'score': ratio_quality,
+        })
+
+    # sort by score desc, then by measure name
+    results.sort(key=lambda r: (-r['score'], r['measure'], r['normalize']))
+
+    # Pretty print table
+    if section_filter:
+        print("\nTag-similarity evaluation for section '{}' (precision with k={}):".format(section_filter, top_k))
+    else:
+        print("\nTag-similarity evaluation (precision with k={}):".format(top_k))
+    print("{:<12}  {:<11}  {:>8}".format("measure", "normalize", "score"))
+    print("-" * 36)
+    for r in results:
+        print("{:<12}  {:<11}  {:>8.4f}".format(r['measure'], str(r['normalize']), r['score']))
+
+    if results:
+        best = results[0]
+        print("\nBest approach: {} (normalize={}) with score {:.4f}".format(best['measure'], best['normalize'], best['score']))
+    print()
+
 def print_tags_summary(csv_file: str = "news2.csv", normalize: bool = True, limit: int = 25):
-    """Compute and print tag counts sorted by frequency desc, cut after `limit`."""
+    """
+    Count how many times each tag appears, print sorted by frequency desc, cut after `limit`.
+    Also prints a simple histogram of tag frequency distribution.
+    """
     _, tags, _, _ = get_documents_and_topics(csv_file)
     def norm(t: str) -> str:
         t = t.strip()
@@ -216,24 +383,21 @@ def print_tags_summary(csv_file: str = "news2.csv", normalize: bool = True, limi
 
 
 print("\033[31mEX 01\033[0m")
-
 ex123("tfidf", "Food & Drink")
 
 print("\033[31mEX 02\033[0m")
-
 ex123("lda", "Food & Drink")
 
 print("\033[31mEX 03\033[0m")
-
 ex123("tfidf", "Sports")
 ex123("lda", "Sports")
 
 print("\033[31mExtra analysis for exercise 4: tags frequency\033[0m")
-print_tags_summary("news2.csv", normalize=True, limit=3000)
+print_tags_summary("news2.csv", normalize=True, limit=10)
 
-print("\033[31mEX 04 (Head of distance Matrix)\033[0m")
+print("\033[31mEX 04 — approach comparison (normalization vs. measure)\033[0m")
+evaluate_ex4_approaches("news2.csv", top_k=10, section_filter="Food & Drink")
 
-# pretty print for numpy (stolen from chatgpt...)
-np.set_printoptions(precision=2, suppress=True, linewidth=200)
-
-pprint(ex4()[:20, :20])
+# print("Distance matrix (geometric, raw tags):")
+# np.set_printoptions(precision=2, suppress=True, linewidth=200)
+# pprint(ex4_distance_matrix(measure='geometric', normalize=False)[:20, :20])
