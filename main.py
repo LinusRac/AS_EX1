@@ -72,7 +72,7 @@ def ex123(method = "tfidf", topic="Food & Drink"):
 
     print(f"starting {method} (topic: {topic})...")
     docs, tags, sections, headers = get_documents_and_topics("news2.csv")
-    food_and_drink_corpus = get_all_articles_in_section(topic, docs, sections)
+    topic_corpus = get_all_articles_in_section(topic, docs, sections)
 
     corpus_bow,dictionary = get_bow(docs)
 
@@ -91,6 +91,7 @@ def ex123(method = "tfidf", topic="Food & Drink"):
         matrix = similarities.MatrixSimilarity(vectors)
     
     elif method == "lda":
+        # using 30 topics as specified in the assignment requirements
         model = models.LdaModel(corpus_bow, num_topics=30, id2word=dictionary, random_state=30, passes=2)
         vectors = []
         for v in corpus_bow:
@@ -105,14 +106,14 @@ def ex123(method = "tfidf", topic="Food & Drink"):
     stoplist = stopwords.words('english')
     total_goods = 0
 
-    for doc in food_and_drink_corpus:
+    for doc in topic_corpus:
         doc_s = [porter.stem(word) for word in doc.lower().split() if word not in stoplist]
 
         vec_bow = dictionary.doc2bow(doc_s)
-        vec_tfidf = model[vec_bow]
+        vec_model = model[vec_bow]
 
         # calculate similarities between doc and each doc of texts using tfidf vectors and cosine
-        sims = matrix[vec_tfidf]
+        sims = matrix[vec_model]
 
         # sort similarities in descending order
         sims = sorted(enumerate(sims), key=lambda item: -item[1])
@@ -132,7 +133,7 @@ def ex123(method = "tfidf", topic="Food & Drink"):
             if topic in section:
                 total_goods += 1
 
-    ratio_quality = total_goods/(len(food_and_drink_corpus)*10)
+    ratio_quality = total_goods/(len(topic_corpus)*10)
     print(f"{method} for category {topic}: ratio quality: {ratio_quality}")
     end_t: datetime = datetime.datetime.now()
     elapsed_time_model_creation: datetime = end_creation_model_t - init_t
