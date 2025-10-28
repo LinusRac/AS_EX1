@@ -10,6 +10,19 @@ Sports is a topic that is much more broad than food an drinks. For instance, an 
 
 As tagging is done manually, the information contained in tags is much more reliable, concise and of lower redundancy.
 
+A helper function `print_tags_summary` has been used to understand the tags frequency and distribution across articles.
+```
+Tag frequency distribution (tags per bucket):
+    1:  9445 ##############################
+    2:  1556 ####
+  3-5:  1171 ###
+ 6-10:   391 #
+11-20:   217 
+  21+:   160 
+```
+
+We observed that the majority of tags are low-frequency, with a significant number appearing only once. This indicates a long-tail distribution, where a few tags are very common while many others are rare. By manually looking at the tags, we observe that there can be a lot of redundancy (e.g., "food", "foods", "foodie", "foodies").
+
 In our code, we determine which percentage of the tags for article 1 are also tags of article and 2 and vice versa. From these two numbers we calculate the geometric mean in order to get a distance measure between 1 (same tags) and 0 (completely disjunct sets of tags).
 
 An alternative would be to use a measure for the distance of two sets, like the Jaccard Similarity.

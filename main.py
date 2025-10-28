@@ -14,6 +14,7 @@ from nltk.corpus import stopwords
 from nltk import PorterStemmer
 from math import sqrt
 import numpy as np
+from collections import Counter
 
 
 def get_all_articles_in_section(sec, documents, sections):
@@ -173,6 +174,47 @@ def ex4(verbose = False):
             matrix[i, j] = distance(tags_a, tags_b)
     return matrix
 
+def print_tags_summary(csv_file: str = "news2.csv", normalize: bool = True, limit: int = 25):
+    """Compute and print tag counts sorted by frequency desc, cut after `limit`."""
+    _, tags, _, _ = get_documents_and_topics(csv_file)
+    def norm(t: str) -> str:
+        t = t.strip()
+        return t.lower() if normalize else t
+    counts = Counter(norm(t) for taglist in tags for t in taglist if t and t.strip())
+    items = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    print(f"Unique tags: {len(items)}")
+    to_show = items if limit is None else items[:limit]
+    for tag, cnt in to_show:
+        print(f"- {tag}: {cnt}")
+    if limit is not None and len(items) > limit:
+        print(f"... (+{len(items) - limit} more)")
+
+    # simple histogram to show how many tags are low-frequency
+    if counts:
+        freq_counts = Counter(counts.values())  # maps frequency -> number of tags with that frequency
+
+        buckets = [
+            ("1", lambda f: f == 1),
+            ("2", lambda f: f == 2),
+            ("3-5", lambda f: 3 <= f <= 5),
+            ("6-10", lambda f: 6 <= f <= 10),
+            ("11-20", lambda f: 11 <= f <= 20),
+            ("21+", lambda f: f >= 21),
+        ]
+        bucket_vals = []
+        for label, pred in buckets:
+            total = sum(n for freq, n in freq_counts.items() if pred(freq))
+            bucket_vals.append((label, total))
+        max_val = max((v for _, v in bucket_vals), default=1) or 1
+        scale = 30  # bar width
+        print("\nTag frequency distribution (tags per bucket):")
+        for label, v in bucket_vals:
+            bar_len = int((v / max_val) * scale) if max_val else 0
+            bar = "#" * bar_len
+            print(f"{label:>5}: {v:>5} {bar}")
+
+
+
 print("\033[31mEX 01\033[0m")
 
 ex123("tfidf", "Food & Drink")
@@ -185,6 +227,9 @@ print("\033[31mEX 03\033[0m")
 
 ex123("tfidf", "Sports")
 ex123("lda", "Sports")
+
+print("\033[31mExtra analysis for exercise 4: tags frequency\033[0m")
+print_tags_summary("news2.csv", normalize=True, limit=3000)
 
 print("\033[31mEX 04 (Head of distance Matrix)\033[0m")
 
